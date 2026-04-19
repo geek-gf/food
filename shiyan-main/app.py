@@ -302,7 +302,7 @@ def analyze_image():
                 {
                     "role": "user",
                     "content": [
-                        {"type": "image_url", "image_url": {"url": image_data}},
+                        {"type": "input_image", "image_url": image_data},
                         {
                             "type": "text",
                             "text": "请识别图中所有可见的食材，并根据这些食材推荐2-3道菜肴及简单做法。",
