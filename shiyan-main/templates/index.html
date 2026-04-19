@@ -5,86 +5,146 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>美食 AI — 智能食谱助手</title>
   <script>
-    // Lightweight Markdown renderer (no external dependencies)
+    // Lightweight Markdown renderer
     const marked = {
       parse(src) {
-        // Fenced code blocks
         src = src.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) =>
           `<pre><code>${escHtml(code.trim())}</code></pre>`);
+        // Checkbox list items
+        src = src.replace(/^- \[ \] (.+)/gm, '<li class="check-item"><label><input type="checkbox"> $1</label></li>');
+        src = src.replace(/^- \[x\] (.+)/gm, '<li class="check-item checked"><label><input type="checkbox" checked> $1</label></li>');
+
         const lines = src.split('\n');
-        let html = '';
-        let inUl = false, inOl = false;
+        let html = '', inUl = false, inOl = false, inTable = false;
 
         const closeList = () => {
           if (inUl) { html += '</ul>'; inUl = false; }
           if (inOl) { html += '</ol>'; inOl = false; }
         };
+        const closeTable = () => {
+          if (inTable) { html += '</tbody></table>'; inTable = false; }
+        };
 
         for (let i = 0; i < lines.length; i++) {
           let line = lines[i];
-          // Headings
-          if (/^### (.+)/.test(line)) { closeList(); html += `<h3>${inline(line.slice(4))}</h3>`; continue; }
-          if (/^## (.+)/.test(line))  { closeList(); html += `<h2>${inline(line.slice(3))}</h2>`; continue; }
-          if (/^# (.+)/.test(line))   { closeList(); html += `<h1>${inline(line.slice(2))}</h1>`; continue; }
-          // HR
-          if (/^---+$/.test(line.trim())) { closeList(); html += '<hr>'; continue; }
-          // Unordered list
+          if (/^### (.+)/.test(line)) { closeList(); closeTable(); html += `<h3>${inline(line.slice(4))}</h3>`; continue; }
+          if (/^## (.+)/.test(line))  { closeList(); closeTable(); html += `<h2>${inline(line.slice(3))}</h2>`; continue; }
+          if (/^# (.+)/.test(line))   { closeList(); closeTable(); html += `<h1>${inline(line.slice(2))}</h1>`; continue; }
+          if (/^---+$/.test(line.trim())) { closeList(); closeTable(); html += '<hr>'; continue; }
+
+          // Table header row
+          if (/^\|.+\|$/.test(line) && i + 1 < lines.length && /^\|[-| :]+\|$/.test(lines[i+1])) {
+            closeList(); closeTable();
+            const cols = line.split('|').filter((_, j, a) => j > 0 && j < a.length - 1).map(c => `<th>${inline(c.trim())}</th>`).join('');
+            html += `<table><thead><tr>${cols}</tr></thead><tbody>`;
+            inTable = true; i++; continue;
+          }
+          if (inTable && /^\|.+\|$/.test(line)) {
+            const cols = line.split('|').filter((_, j, a) => j > 0 && j < a.length - 1).map(c => `<td>${inline(c.trim())}</td>`).join('');
+            html += `<tr>${cols}</tr>`; continue;
+          }
+          if (inTable) { closeTable(); }
+
+          if (line.startsWith('<li class="check-item')) {
+            if (!inUl) { closeList(); html += '<ul class="check-list">'; inUl = true; }
+            html += line; continue;
+          }
           const ulMatch = line.match(/^[*\-] (.+)/);
           if (ulMatch) { if (!inUl) { closeList(); html += '<ul>'; inUl = true; } html += `<li>${inline(ulMatch[1])}</li>`; continue; }
-          // Ordered list
           const olMatch = line.match(/^\d+\. (.+)/);
           if (olMatch) { if (!inOl) { closeList(); html += '<ol>'; inOl = true; } html += `<li>${inline(olMatch[1])}</li>`; continue; }
-          // Blank line
-          if (line.trim() === '') { closeList(); html += '<br>'; continue; }
-          // Paragraph
-          closeList();
+          if (line.trim() === '') { closeList(); closeTable(); html += '<br>'; continue; }
+          closeList(); closeTable();
           html += `<p>${inline(line)}</p>`;
         }
-        closeList();
+        closeList(); closeTable();
+
+        // Timer markers
+        html = html.replace(/【定时(\d+)分钟】/g, (_, m) =>
+          `<button class="timer-inline-btn" onclick="startTimerFromBtn(${m})">&#x23F1; 定时 ${m} 分钟</button>`);
         return html;
       }
     };
 
-    function escHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
     function inline(s) {
-      // Bold + italic
       s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-      // Bold
       s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      // Italic
       s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
-      // Inline code
       s = s.replace(/`([^`]+)`/g, (_, c) => `<code>${escHtml(c)}</code>`);
       return s;
     }
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    :root {
+      --primary: #ff6b35;
+      --primary-dark: #d9440b;
+      --primary-light: #fff3e0;
+      --primary-border: #ffe0cc;
+      --primary-btn: linear-gradient(135deg, #ff6b35, #f7931e);
+      --bg: linear-gradient(135deg, #fff8f0 0%, #fff3e0 100%);
+      --radius: 12px;
+      --shadow: 0 2px 8px rgba(255,107,53,0.15);
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
                    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      background: linear-gradient(135deg, #fff8f0 0%, #fff3e0 100%);
+      background: var(--bg);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      color: #333;
     }
-
+    /* Header */
     header {
-      background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
+      background: var(--primary-btn);
       color: #fff;
-      padding: 16px 24px;
+      padding: 11px 18px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       box-shadow: 0 2px 8px rgba(255,107,53,0.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    header .logo { font-size: 32px; }
-    header h1 { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
-    header p  { font-size: 13px; opacity: 0.9; margin-top: 2px; }
-
+    header .logo { font-size: 26px; flex-shrink: 0; }
+    header h1 { font-size: 17px; font-weight: 700; letter-spacing: 1px; }
+    header p  { font-size: 11px; opacity: 0.9; }
+    #voice-status { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 12px; }
+    #voice-status .dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; display: none; }
+    #voice-status.listening .dot { display: block; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    /* Tab nav */
+    nav#tab-nav {
+      background: #fff;
+      border-bottom: 1px solid var(--primary-border);
+      display: flex;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      position: sticky;
+      top: 53px;
+      z-index: 99;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    nav#tab-nav::-webkit-scrollbar { display: none; }
+    .tab-btn {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      padding: 10px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #666;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--primary); }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    /* Main */
     main {
       flex: 1;
       display: flex;
@@ -92,178 +152,313 @@
       max-width: 860px;
       width: 100%;
       margin: 0 auto;
-      padding: 24px 16px 0;
-      gap: 16px;
+      padding: 14px 12px 0;
+      gap: 0;
     }
-
-    #chat-window {
+    .tab-panel { display: none; flex-direction: column; flex: 1; gap: 10px; }
+    .tab-panel.active { display: flex; }
+    /* Config panel */
+    .config-panel {
+      background: #fff;
+      border: 1px solid var(--primary-border);
+      border-radius: var(--radius);
+      padding: 13px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: var(--shadow);
+    }
+    .config-panel h3 { font-size: 15px; color: var(--primary-dark); }
+    .config-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .config-label { font-size: 12px; color: #666; min-width: 68px; flex-shrink: 0; }
+    /* Chips */
+    .chip-group { display: flex; flex-wrap: wrap; gap: 5px; }
+    .chip {
+      background: #fff;
+      border: 1px solid var(--primary-border);
+      color: var(--primary-dark);
+      border-radius: 18px;
+      padding: 3px 11px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chip.selected, .chip:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    /* Tag input */
+    .tag-input-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: center;
+      border: 1.5px solid var(--primary-border);
+      border-radius: var(--radius);
+      padding: 5px 10px;
+      background: #fff;
+      cursor: text;
+      min-height: 38px;
+    }
+    .tag-input-wrap:focus-within { border-color: var(--primary); }
+    .tag-input-wrap input { border: none; outline: none; font-size: 13px; flex: 1; min-width: 80px; background: transparent; }
+    .tag {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .tag .remove { cursor: pointer; font-size: 13px; line-height: 1; }
+    /* Inputs */
+    .config-input {
+      width: 100%;
+      border: 1.5px solid var(--primary-border);
+      border-radius: var(--radius);
+      padding: 7px 11px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    .config-input:focus { border-color: var(--primary); }
+    /* Buttons */
+    .primary-btn {
+      background: var(--primary-btn);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 9px 20px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      font-weight: 600;
+      align-self: flex-start;
+    }
+    .primary-btn:hover { opacity: 0.88; }
+    .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .secondary-btn {
+      background: #fff;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+      border-radius: var(--radius);
+      padding: 7px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .secondary-btn:hover { background: var(--primary); color: #fff; }
+    /* Image upload */
+    .image-drop-area {
+      border: 2px dashed var(--primary-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--primary-light);
+    }
+    .image-drop-area:hover, .image-drop-area.dragover { border-color: var(--primary); background: #fff; }
+    .image-drop-area .icon { font-size: 36px; }
+    .image-drop-area p { color: #666; font-size: 13px; margin-top: 6px; }
+    #image-preview { max-width: 100%; max-height: 180px; border-radius: 8px; margin-top: 8px; display: none; }
+    #file-input { display: none; }
+    /* Chat window */
+    .chat-window {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
       padding-bottom: 8px;
-      max-height: calc(100vh - 220px);
+      max-height: calc(100vh - 320px);
+      min-height: 100px;
     }
-
-    .bubble-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-    }
-    .bubble-row.user  { flex-direction: row-reverse; }
-
+    .chat-window.tall { max-height: calc(100vh - 200px); }
+    .chat-window::-webkit-scrollbar { width: 4px; }
+    .chat-window::-webkit-scrollbar-thumb { background: var(--primary-border); border-radius: 2px; }
+    /* Bubbles */
+    .bubble-row { display: flex; align-items: flex-start; gap: 8px; }
+    .bubble-row.user { flex-direction: row-reverse; }
     .avatar {
-      width: 38px;
-      height: 38px;
+      width: 32px; height: 32px;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; flex-shrink: 0;
     }
-    .avatar.ai   { background: linear-gradient(135deg, #ff6b35, #f7931e); }
+    .avatar.ai   { background: var(--primary-btn); }
     .avatar.user { background: #e0e0e0; }
-
     .bubble {
-      max-width: 78%;
-      padding: 12px 16px;
-      border-radius: 16px;
+      max-width: 80%;
+      padding: 10px 13px;
+      border-radius: 14px;
       line-height: 1.7;
-      font-size: 15px;
+      font-size: 14px;
       word-break: break-word;
     }
     .bubble.ai {
       background: #fff;
-      border: 1px solid #ffe0cc;
+      border: 1px solid var(--primary-border);
       border-top-left-radius: 4px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .bubble.user {
-      background: linear-gradient(135deg, #ff6b35, #f7931e);
+      background: var(--primary-btn);
       color: #fff;
       border-top-right-radius: 4px;
     }
-
-    /* Markdown 样式 */
-    .bubble.ai h1, .bubble.ai h2, .bubble.ai h3 {
-      margin: 12px 0 6px;
-      color: #d9440b;
+    /* Markdown styles */
+    .bubble.ai h1,.bubble.ai h2,.bubble.ai h3 { margin: 9px 0 4px; color: var(--primary-dark); }
+    .bubble.ai ul,.bubble.ai ol { padding-left: 18px; margin: 4px 0; }
+    .bubble.ai li { margin: 3px 0; }
+    .bubble.ai p  { margin: 4px 0; }
+    .bubble.ai strong { color: var(--primary-dark); }
+    .bubble.ai code { background: var(--primary-light); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .bubble.ai pre { background: #f5f5f5; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 6px 0; }
+    .bubble.ai hr { border: none; border-top: 1px solid var(--primary-border); margin: 8px 0; }
+    .bubble.ai table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 13px; }
+    .bubble.ai th,.bubble.ai td { border: 1px solid var(--primary-border); padding: 5px 8px; text-align: left; }
+    .bubble.ai th { background: var(--primary-light); }
+    .bubble.ai .check-list { list-style: none; padding-left: 0; }
+    .bubble.ai .check-item { margin: 4px 0; }
+    .bubble.ai .check-item label { cursor: pointer; }
+    .bubble.ai .check-item.checked label { text-decoration: line-through; color: #999; }
+    .bubble.ai .timer-inline-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #fff8f0; border: 1px solid var(--primary);
+      color: var(--primary); border-radius: 14px;
+      padding: 2px 10px; font-size: 12px; cursor: pointer;
+      transition: all 0.2s; margin: 2px 0;
     }
-    .bubble.ai ul, .bubble.ai ol { padding-left: 20px; margin: 6px 0; }
-    .bubble.ai li { margin: 4px 0; }
-    .bubble.ai p  { margin: 6px 0; }
-    .bubble.ai strong { color: #c0390a; }
-    .bubble.ai code {
-      background: #fff3e0;
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-size: 13px;
+    .bubble.ai .timer-inline-btn:hover { background: var(--primary); color: #fff; }
+    /* Bubble actions */
+    .bubble-actions { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+    .action-btn {
+      background: none; border: 1px solid #ddd;
+      border-radius: 7px; padding: 3px 8px; font-size: 11px;
+      cursor: pointer; color: #888; transition: all 0.2s;
     }
-    .bubble.ai hr { border: none; border-top: 1px solid #ffe0cc; margin: 10px 0; }
-
+    .action-btn:hover { border-color: var(--primary); color: var(--primary); }
+    /* Typing indicator */
     .typing-indicator span {
-      display: inline-block;
-      width: 8px; height: 8px;
-      background: #ff6b35;
-      border-radius: 50%;
-      margin: 0 2px;
-      animation: bounce 1.2s infinite;
+      display: inline-block; width: 7px; height: 7px;
+      background: var(--primary); border-radius: 50%;
+      margin: 0 2px; animation: bounce 1.2s infinite;
     }
     .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
     .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes bounce {
-      0%, 60%, 100% { transform: translateY(0); }
-      30%            { transform: translateY(-8px); }
-    }
-
-    .suggestions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      padding: 4px 0;
-    }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-7px)} }
+    /* Suggestions */
+    .suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0; }
     .suggestion-btn {
-      background: #fff;
-      border: 1px solid #ffb088;
-      color: #d9440b;
-      border-radius: 20px;
-      padding: 6px 14px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: all 0.2s;
+      background: #fff; border: 1px solid #ffb088;
+      color: var(--primary-dark); border-radius: 16px;
+      padding: 5px 12px; font-size: 12px; cursor: pointer; transition: all 0.2s;
     }
-    .suggestion-btn:hover {
-      background: #ff6b35;
-      color: #fff;
-      border-color: #ff6b35;
+    .suggestion-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    /* Timer widget */
+    #timer-widget {
+      position: fixed; bottom: 86px; right: 16px;
+      background: #fff; border: 2px solid var(--primary);
+      border-radius: 16px; padding: 12px 18px;
+      box-shadow: 0 4px 16px rgba(255,107,53,0.25);
+      z-index: 200; display: none;
+      flex-direction: column; align-items: center; gap: 7px;
+      min-width: 150px;
     }
-
+    #timer-widget.visible { display: flex; }
+    #timer-display { font-size: 34px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
+    #timer-label { font-size: 11px; color: #666; }
+    #timer-controls { display: flex; gap: 8px; }
+    .timer-ctrl-btn {
+      background: none; border: 1px solid var(--primary-border);
+      border-radius: 7px; padding: 3px 10px; font-size: 12px;
+      cursor: pointer; color: #333; transition: all 0.2s;
+    }
+    .timer-ctrl-btn:hover { background: var(--primary-light); }
+    .timer-ctrl-btn.danger:hover { background: #fdecea; border-color: #e53935; color: #e53935; }
+    /* Footer */
     footer {
       background: #fff;
-      border-top: 1px solid #ffe0cc;
-      padding: 12px 16px;
+      border-top: 1px solid var(--primary-border);
+      padding: 9px 12px;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: flex-end;
       max-width: 860px;
       width: 100%;
       margin: 0 auto;
     }
-    textarea {
-      flex: 1;
-      border: 1.5px solid #ffb088;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 15px;
-      font-family: inherit;
-      resize: none;
-      outline: none;
-      transition: border-color 0.2s;
-      max-height: 140px;
-      line-height: 1.5;
+    #voice-btn {
+      background: none; border: 1.5px solid var(--primary-border);
+      border-radius: 50%; width: 38px; height: 38px;
+      font-size: 17px; cursor: pointer; transition: all 0.2s; flex-shrink: 0;
     }
-    textarea:focus { border-color: #ff6b35; }
+    #voice-btn:hover, #voice-btn.recording { background: var(--primary); border-color: var(--primary); }
+    #voice-btn.recording { animation: pulse 0.8s infinite; }
+    textarea#user-input {
+      flex: 1; border: 1.5px solid var(--primary-border);
+      border-radius: var(--radius); padding: 8px 11px;
+      font-size: 14px; font-family: inherit; resize: none;
+      outline: none; transition: border-color 0.2s;
+      max-height: 110px; line-height: 1.5;
+    }
+    textarea#user-input:focus { border-color: var(--primary); }
     #send-btn {
-      background: linear-gradient(135deg, #ff6b35, #f7931e);
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      padding: 10px 22px;
-      font-size: 15px;
-      cursor: pointer;
-      transition: opacity 0.2s;
-      white-space: nowrap;
+      background: var(--primary-btn); color: #fff; border: none;
+      border-radius: var(--radius); padding: 8px 16px; font-size: 14px;
+      cursor: pointer; transition: opacity 0.2s; white-space: nowrap; font-weight: 600;
     }
     #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    #send-btn:not(:disabled):hover { opacity: 0.9; }
+    #send-btn:not(:disabled):hover { opacity: 0.88; }
+    @media (max-width: 480px) {
+      .bubble { max-width: 92%; }
+      .config-panel { padding: 10px 11px; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="logo">🍜</div>
-    <div>
-      <h1>美食 AI</h1>
-      <p>智能食谱助手 — 告诉我你想做什么菜，我来教你！</p>
-    </div>
-  </header>
 
-  <main>
-    <div id="chat-window">
-      <!-- 欢迎消息 -->
+<header>
+  <div class="logo">🍜</div>
+  <div>
+    <h1>美食 AI</h1>
+    <p>你的智能美食伙伴</p>
+  </div>
+  <div id="voice-status">
+    <div class="dot"></div>
+    <span id="voice-status-text"></span>
+  </div>
+</header>
+
+<nav id="tab-nav">
+  <button class="tab-btn active" data-tab="chat">🤖 AI助手</button>
+  <button class="tab-btn" data-tab="generate">🥘 菜谱生成</button>
+  <button class="tab-btn" data-tab="recommend">⭐ 个性推荐</button>
+  <button class="tab-btn" data-tab="image">📸 食材识别</button>
+  <button class="tab-btn" data-tab="assistant">👨‍🍳 做菜助手</button>
+  <button class="tab-btn" data-tab="search">🔍 搜索菜谱</button>
+  <button class="tab-btn" data-tab="nutrition">📊 营养分析</button>
+  <button class="tab-btn" data-tab="shopping">🛒 购物清单</button>
+</nav>
+
+<main>
+
+  <!-- ① AI助手 -->
+  <div class="tab-panel active" id="panel-chat">
+    <div class="chat-window tall" id="chat-chat">
       <div class="bubble-row ai">
         <div class="avatar ai">🍜</div>
-        <div class="bubble ai" id="welcome-bubble">
+        <div class="bubble ai">
           👋 你好！我是你的专属美食 AI 助手。<br><br>
-          你可以问我任何菜肴的食谱，比如：<br>
-          <strong>「红烧肉怎么做？」</strong>、<strong>「教我做宫保鸡丁」</strong>、<strong>「披萨的做法」</strong> ……<br><br>
-          试试下面的推荐菜品，或者直接输入你想了解的菜名吧！🥢
+          你可以直接问我任何菜肴的食谱，也可以切换上方标签使用<strong>菜谱生成、食材识别、做菜助手</strong>等专属功能。<br><br>
+          试试下面的推荐：
         </div>
       </div>
       <div class="bubble-row ai">
-        <div class="avatar ai" style="visibility:hidden;">🍜</div>
-        <div class="suggestions" id="suggestions">
+        <div class="avatar ai" style="visibility:hidden">🍜</div>
+        <div class="suggestions" id="suggestions-chat">
           <button class="suggestion-btn">🥩 红烧肉</button>
           <button class="suggestion-btn">🍗 宫保鸡丁</button>
           <button class="suggestion-btn">🥘 麻婆豆腐</button>
@@ -274,163 +469,863 @@
         </div>
       </div>
     </div>
-  </main>
+  </div>
 
-  <footer>
-    <textarea id="user-input" rows="1" placeholder="输入菜名或食谱问题，按 Enter 发送…"></textarea>
-    <button id="send-btn">发送 ✈️</button>
-  </footer>
+  <!-- ② 菜谱生成 -->
+  <div class="tab-panel" id="panel-generate">
+    <div class="config-panel">
+      <h3>🥘 智能菜谱生成</h3>
+      <div>
+        <div class="config-label" style="margin-bottom:4px">冰箱里有哪些食材？（回车添加）</div>
+        <div class="tag-input-wrap" id="ingredient-tag-wrap">
+          <input type="text" id="ingredient-input" placeholder="输入食材，按回车添加…" />
+        </div>
+      </div>
+      <div>
+        <div class="config-label" style="margin-bottom:4px">饮食目标（可多选）</div>
+        <div class="chip-group" id="diet-chips">
+          <button class="chip" data-val="减脂低卡">🥗 减脂低卡</button>
+          <button class="chip" data-val="健身增肌">💪 健身增肌</button>
+          <button class="chip" data-val="素食">🌱 素食</button>
+          <button class="chip" data-val="快手菜（15分钟内）">⚡ 快手菜</button>
+          <button class="chip" data-val="家常菜">🏠 家常菜</button>
+          <button class="chip" data-val="低盐低脂">❤️ 低盐低脂</button>
+        </div>
+      </div>
+      <button class="primary-btn" id="generate-btn" onclick="doGenerate()">✨ 生成菜谱</button>
+    </div>
+    <div class="chat-window" id="chat-generate"></div>
+  </div>
 
-  <script>
-    const chatWindow  = document.getElementById('chat-window');
-    const userInput   = document.getElementById('user-input');
-    const sendBtn     = document.getElementById('send-btn');
-    const suggestions = document.getElementById('suggestions');
+  <!-- ③ 个性化推荐 -->
+  <div class="tab-panel" id="panel-recommend">
+    <div class="config-panel">
+      <h3>⭐ 个性化推荐</h3>
+      <div class="config-row">
+        <span class="config-label">口味偏好</span>
+        <div class="chip-group" id="taste-chips">
+          <button class="chip" data-val="不辣">🙂 不辣</button>
+          <button class="chip" data-val="微辣">🌶 微辣</button>
+          <button class="chip" data-val="中辣">🌶🌶 中辣</button>
+          <button class="chip" data-val="偏甜">🍯 偏甜</button>
+          <button class="chip" data-val="清淡">🥢 清淡</button>
+        </div>
+      </div>
+      <div class="config-row">
+        <span class="config-label">健康目标</span>
+        <div class="chip-group" id="goal-chips">
+          <button class="chip" data-val="日常均衡">🍽 日常均衡</button>
+          <button class="chip" data-val="减脂">⚡ 减脂</button>
+          <button class="chip" data-val="增肌">💪 增肌</button>
+          <button class="chip" data-val="素食">🌱 素食</button>
+          <button class="chip" data-val="控糖">🩺 控糖</button>
+        </div>
+      </div>
+      <div class="config-row">
+        <span class="config-label">地域偏好</span>
+        <div class="chip-group" id="region-chips">
+          <button class="chip" data-val="川湘菜">🌶 川湘</button>
+          <button class="chip" data-val="粤菜">🦐 粤菜</button>
+          <button class="chip" data-val="东北菜">❄️ 东北</button>
+          <button class="chip" data-val="江浙菜">🍵 江浙</button>
+          <button class="chip" data-val="西餐">🍝 西餐</button>
+          <button class="chip" data-val="日韩料理">🍱 日韩</button>
+        </div>
+      </div>
+      <div class="config-row">
+        <span class="config-label">推荐类型</span>
+        <div class="chip-group" id="rectype-chips">
+          <button class="chip selected" data-val="今日三餐">📅 今日三餐</button>
+          <button class="chip" data-val="一周菜单">📆 一周菜单</button>
+        </div>
+      </div>
+      <button class="primary-btn" onclick="doRecommend()">🎯 为我推荐</button>
+    </div>
+    <div class="chat-window" id="chat-recommend"></div>
+  </div>
 
-    // Limit history to MAX_HISTORY_MESSAGES most recent messages (simple count limit)
-    const MAX_HISTORY_MESSAGES = 40;
+  <!-- ④ 食材识别 -->
+  <div class="tab-panel" id="panel-image">
+    <div class="config-panel">
+      <h3>📸 食材识别</h3>
+      <div class="image-drop-area" id="drop-area" onclick="document.getElementById('file-input').click()">
+        <div class="icon">📷</div>
+        <p>点击或拖拽图片到这里<br><small>支持拍摄冰箱 / 菜市场照片，AI 自动识别食材</small></p>
+        <img id="image-preview" alt="预览" />
+      </div>
+      <input type="file" id="file-input" accept="image/*" capture="environment" />
+      <div class="btn-row">
+        <button class="primary-btn" id="analyze-btn" onclick="doAnalyzeImage()" disabled>🔍 识别食材 &amp; 推荐菜谱</button>
+        <button class="secondary-btn" onclick="clearImage()">🗑 清除图片</button>
+      </div>
+    </div>
+    <div class="chat-window" id="chat-image"></div>
+  </div>
 
-    let history = [];
-    let isStreaming = false;
+  <!-- ⑤ 做菜助手 -->
+  <div class="tab-panel" id="panel-assistant">
+    <div class="config-panel">
+      <h3>👨‍🍳 做菜助手（副驾驶模式）</h3>
+      <div class="config-row">
+        <span class="config-label">想做什么菜？</span>
+        <input type="text" class="config-input" id="dish-input"
+          placeholder="例如：番茄炒鸡蛋、红烧肉…" style="flex:1;" />
+      </div>
+      <button class="primary-btn" onclick="doStartCooking()">🍳 开始做菜</button>
+    </div>
+    <div class="chat-window" id="chat-assistant">
+      <div class="bubble-row ai">
+        <div class="avatar ai">🍜</div>
+        <div class="bubble ai">
+          👨‍🍳 准备好开始做菜了吗？<br>
+          告诉我你想做什么菜，我会一步步带着你完成！<br><br>
+          <strong>💡 小提示：</strong>当提到需要计时的步骤时，点击 <strong>⏱ 定时</strong> 按钮即可快速设定。
+        </div>
+      </div>
+    </div>
+  </div>
 
-    // 自动高度调整
-    userInput.addEventListener('input', () => {
-      userInput.style.height = 'auto';
-      userInput.style.height = Math.min(userInput.scrollHeight, 140) + 'px';
+  <!-- ⑥ 搜索菜谱 -->
+  <div class="tab-panel" id="panel-search">
+    <div class="config-panel">
+      <h3>🔍 搜索菜谱</h3>
+      <input type="text" class="config-input" id="search-input"
+        placeholder="模糊描述也可以，例如：像宫保鸡丁但不辣、适合夏天的清淡菜…" />
+      <div class="config-row">
+        <span class="config-label">烹饪时间</span>
+        <div class="chip-group" id="time-chips">
+          <button class="chip" data-val="15分钟内">⚡ 15分钟内</button>
+          <button class="chip" data-val="30分钟内">🕐 30分钟内</button>
+          <button class="chip" data-val="1小时内">⏰ 1小时内</button>
+          <button class="chip" data-val="不限时间">∞ 不限</button>
+        </div>
+      </div>
+      <div class="config-row">
+        <span class="config-label">难度</span>
+        <div class="chip-group" id="diff-chips">
+          <button class="chip" data-val="简单">⭐ 简单</button>
+          <button class="chip" data-val="中等">⭐⭐ 中等</button>
+          <button class="chip" data-val="困难">⭐⭐⭐ 困难</button>
+          <button class="chip" data-val="不限难度">∞ 不限</button>
+        </div>
+      </div>
+      <div class="config-row">
+        <span class="config-label">热量</span>
+        <div class="chip-group" id="cal-chips">
+          <button class="chip" data-val="低热量(300千卡以内)">🥗 低热量</button>
+          <button class="chip" data-val="中热量(300-600千卡)">🍚 中热量</button>
+          <button class="chip" data-val="高热量(600千卡以上)">🍖 高热量</button>
+          <button class="chip" data-val="不限热量">∞ 不限</button>
+        </div>
+      </div>
+      <button class="primary-btn" onclick="doSearch()">🔍 搜索</button>
+    </div>
+    <div class="chat-window" id="chat-search"></div>
+  </div>
+
+  <!-- ⑦ 营养分析 -->
+  <div class="tab-panel" id="panel-nutrition">
+    <div class="config-panel">
+      <h3>📊 营养分析</h3>
+      <div class="config-row">
+        <span class="config-label">菜肴名称</span>
+        <input type="text" class="config-input" id="nutrition-input"
+          placeholder="例如：红烧肉、番茄鸡蛋面…" style="flex:1;" />
+      </div>
+      <div class="config-row">
+        <span class="config-label">分析目标</span>
+        <div class="chip-group" id="nutri-chips">
+          <button class="chip selected" data-val="基础营养分析">📋 基础分析</button>
+          <button class="chip" data-val="减脂饮食评估">⚡ 减脂评估</button>
+          <button class="chip" data-val="增肌饮食评估">💪 增肌评估</button>
+          <button class="chip" data-val="糖尿病适合度">🩺 控糖评估</button>
+        </div>
+      </div>
+      <button class="primary-btn" onclick="doNutrition()">📊 分析营养</button>
+    </div>
+    <div class="chat-window" id="chat-nutrition"></div>
+  </div>
+
+  <!-- ⑧ 购物清单 -->
+  <div class="tab-panel" id="panel-shopping">
+    <div class="config-panel">
+      <h3>🛒 购物清单生成</h3>
+      <div>
+        <div class="config-label" style="margin-bottom:4px">计划做哪些菜？（回车添加）</div>
+        <div class="tag-input-wrap" id="menu-tag-wrap">
+          <input type="text" id="menu-input" placeholder="输入菜名，按回车添加…" />
+        </div>
+      </div>
+      <div class="config-row">
+        <span class="config-label">用餐人数</span>
+        <div class="chip-group" id="person-chips">
+          <button class="chip" data-val="1人份">1人</button>
+          <button class="chip selected" data-val="2人份">2人</button>
+          <button class="chip" data-val="4人份">4人</button>
+          <button class="chip" data-val="6人份">6人</button>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary-btn" onclick="doShopping()">🛒 生成购物清单</button>
+        <button class="secondary-btn" onclick="copyShoppingList()">📋 复制清单</button>
+        <button class="secondary-btn" onclick="printShoppingList()">🖨 打印</button>
+      </div>
+    </div>
+    <div class="chat-window" id="chat-shopping"></div>
+  </div>
+
+</main>
+
+<footer>
+  <button id="voice-btn" title="语音输入">🎤</button>
+  <textarea id="user-input" rows="1" placeholder="输入消息，Enter 发送，Shift+Enter 换行…"></textarea>
+  <button id="send-btn">发送 ✈️</button>
+</footer>
+
+<!-- Floating timer widget -->
+<div id="timer-widget">
+  <div id="timer-label">计时中</div>
+  <div id="timer-display">00:00</div>
+  <div id="timer-controls">
+    <button class="timer-ctrl-btn" id="timer-pause-btn" onclick="toggleTimer()">暂停</button>
+    <button class="timer-ctrl-btn danger" onclick="stopTimer()">✕ 关闭</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// Tab mode mapping
+// ─────────────────────────────────────────────
+const TAB_MODES = {
+  chat:      'default',
+  generate:  'generate',
+  recommend: 'recommend',
+  image:     'image',
+  assistant: 'assistant',
+  search:    'search',
+  nutrition: 'nutrition',
+  shopping:  'shopping',
+};
+
+let activeTab = 'chat';
+const tabHistories = {};
+let isStreaming = false;
+const tabLastAiText = {};
+
+// ─────────────────────────────────────────────
+// Tab switching
+// ─────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === btn.dataset.tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + btn.dataset.tab));
+    activeTab = btn.dataset.tab;
+    document.getElementById('user-input').focus();
+  });
+});
+
+function getChatWindow() { return document.getElementById('chat-' + activeTab); }
+function getHistory()    { return tabHistories[activeTab] || (tabHistories[activeTab] = []); }
+
+// ─────────────────────────────────────────────
+// Footer input
+// ─────────────────────────────────────────────
+const userInput = document.getElementById('user-input');
+const sendBtn   = document.getElementById('send-btn');
+
+userInput.addEventListener('input', () => {
+  userInput.style.height = 'auto';
+  userInput.style.height = Math.min(userInput.scrollHeight, 110) + 'px';
+});
+userInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+sendBtn.addEventListener('click', sendMessage);
+
+// ─────────────────────────────────────────────
+// Quick suggestions (AI chat tab)
+// ─────────────────────────────────────────────
+document.getElementById('suggestions-chat').addEventListener('click', e => {
+  const btn = e.target.closest('.suggestion-btn');
+  if (!btn) return;
+  const text = btn.textContent.replace(/^[\u{1F004}-\u{1FAD6}]\s*/u, '').trim();
+  userInput.value = text;
+  sendMessage();
+});
+
+// ─────────────────────────────────────────────
+// Chip helpers
+// ─────────────────────────────────────────────
+function initSingleChips(id) {
+  const group = document.getElementById(id);
+  if (!group) return;
+  group.querySelectorAll('.chip').forEach(c => {
+    c.addEventListener('click', () => {
+      group.querySelectorAll('.chip').forEach(x => x.classList.remove('selected'));
+      c.classList.add('selected');
     });
+  });
+}
+function initMultiChips(id) {
+  document.getElementById(id)?.querySelectorAll('.chip').forEach(c => {
+    c.addEventListener('click', () => c.classList.toggle('selected'));
+  });
+}
+function getSelectedChips(id) {
+  return [...(document.getElementById(id)?.querySelectorAll('.chip.selected') || [])].map(c => c.dataset.val);
+}
 
-    // Enter 发送（Shift+Enter 换行）
-    userInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
+initMultiChips('diet-chips');
+initMultiChips('taste-chips');
+initMultiChips('goal-chips');
+initMultiChips('region-chips');
+initSingleChips('rectype-chips');
+initSingleChips('time-chips');
+initSingleChips('diff-chips');
+initSingleChips('cal-chips');
+initMultiChips('nutri-chips');
+initSingleChips('person-chips');
+
+// ─────────────────────────────────────────────
+// Tag input (reusable)
+// ─────────────────────────────────────────────
+function initTagInput(wrapperId, inputId) {
+  const wrap  = document.getElementById(wrapperId);
+  const input = document.getElementById(inputId);
+  const tags  = [];
+
+  input.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
+      e.preventDefault();
+      addTag(input.value.trim());
+      input.value = '';
+    } else if (e.key === 'Backspace' && !input.value && tags.length) {
+      removeTag(tags.length - 1);
+    }
+  });
+  wrap.addEventListener('click', () => input.focus());
+
+  function render() {
+    wrap.querySelectorAll('.tag').forEach(t => t.remove());
+    tags.forEach((text, idx) => {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.innerHTML = escHtml(text) + '<span class="remove" data-idx="' + idx + '">\u00d7</span>';
+      tag.querySelector('.remove').addEventListener('click', ev => removeTag(parseInt(ev.target.dataset.idx)));
+      wrap.insertBefore(tag, input);
     });
+  }
+  function addTag(text) { tags.push(text); render(); }
+  function removeTag(idx) { tags.splice(idx, 1); render(); }
 
-    sendBtn.addEventListener('click', sendMessage);
+  return { getTags: () => [...tags] };
+}
 
-    suggestions.addEventListener('click', (e) => {
-      const btn = e.target.closest('.suggestion-btn');
-      if (!btn) return;
-      // Strip leading emoji (food/dining blocks: U+1F300-U+1FAD6, U+1F004-U+1F0CF) and whitespace
-      const text = btn.textContent.replace(/^[\u{1F004}-\u{1FAD6}]\s*/u, '').trim();
-      userInput.value = text;
-      sendMessage();
+const ingredientTags = initTagInput('ingredient-tag-wrap', 'ingredient-input');
+const menuTags       = initTagInput('menu-tag-wrap', 'menu-input');
+
+// ─────────────────────────────────────────────
+// Bubble helpers
+// ─────────────────────────────────────────────
+function appendBubble(chatEl, role, html) {
+  const row = document.createElement('div');
+  row.className = 'bubble-row ' + role;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar ' + role;
+  avatar.textContent = role === 'ai' ? '🍜' : '🙋';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ' + role;
+  bubble.innerHTML = html;
+  if (role === 'ai') { row.appendChild(avatar); row.appendChild(bubble); }
+  else               { row.appendChild(bubble); row.appendChild(avatar); }
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+function appendTyping(chatEl) {
+  const row = document.createElement('div');
+  row.className = 'bubble-row ai';
+  row.id = 'typing-' + chatEl.id;
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar ai'; avatar.textContent = '🍜';
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble ai typing-indicator';
+  bubble.innerHTML = '<span></span><span></span><span></span>';
+  row.appendChild(avatar); row.appendChild(bubble);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function removeTyping(chatEl) {
+  document.getElementById('typing-' + chatEl.id)?.remove();
+}
+
+function addBubbleActions(bubble, text) {
+  const div = document.createElement('div');
+  div.className = 'bubble-actions';
+  const readBtn = document.createElement('button');
+  readBtn.className = 'action-btn';
+  readBtn.textContent = '🔊 朗读';
+  readBtn.onclick = () => speakText(readBtn, text);
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'action-btn';
+  copyBtn.textContent = '📋 复制';
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = copyBtn.textContent;
+      copyBtn.textContent = '✅ 已复制';
+      setTimeout(() => { copyBtn.textContent = orig; }, 1500);
     });
+  };
+  div.appendChild(readBtn); div.appendChild(copyBtn);
+  bubble.appendChild(div);
+}
 
-    function appendBubble(role, html) {
-      const row = document.createElement('div');
-      row.className = `bubble-row ${role}`;
+// ─────────────────────────────────────────────
+// Core: send to /chat
+// ─────────────────────────────────────────────
+async function sendMessage(forceText, forceMode) {
+  if (isStreaming) return;
+  const text = forceText !== undefined ? forceText : userInput.value.trim();
+  if (!text) return;
+  const mode   = forceMode || TAB_MODES[activeTab] || 'default';
+  const chatEl = getChatWindow();
 
-      const avatar = document.createElement('div');
-      avatar.className = `avatar ${role}`;
-      avatar.textContent = role === 'ai' ? '🍜' : '🙋';
+  userInput.value = '';
+  userInput.style.height = 'auto';
+  sendBtn.disabled = true;
+  isStreaming = true;
 
-      const bubble = document.createElement('div');
-      bubble.className = `bubble ${role}`;
-      bubble.innerHTML = html;
+  appendBubble(chatEl, 'user', escHtml(text));
+  appendTyping(chatEl);
+  let aiText = '';
 
-      if (role === 'ai') {
-        row.appendChild(avatar);
-        row.appendChild(bubble);
-      } else {
-        row.appendChild(bubble);
-        row.appendChild(avatar);
-      }
-
-      chatWindow.appendChild(row);
-      scrollToBottom();
-      return bubble;
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history: getHistory(), mode }),
+    });
+    removeTyping(chatEl);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'HTTP ' + resp.status }));
+      appendBubble(chatEl, 'ai', '<span style="color:#e53935">&#9888;&#65039; ' + escHtml(err.error || '请求失败') + '</span>');
+      return;
     }
-
-    function appendTyping() {
-      const row = document.createElement('div');
-      row.className = 'bubble-row ai';
-      row.id = 'typing-row';
-
-      const avatar = document.createElement('div');
-      avatar.className = 'avatar ai';
-      avatar.textContent = '🍜';
-
-      const bubble = document.createElement('div');
-      bubble.className = 'bubble ai typing-indicator';
-      bubble.innerHTML = '<span></span><span></span><span></span>';
-
-      row.appendChild(avatar);
-      row.appendChild(bubble);
-      chatWindow.appendChild(row);
-      scrollToBottom();
-      return row;
+    const aiBubble = appendBubble(chatEl, 'ai', '');
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      aiText += decoder.decode(value, { stream: true });
+      aiBubble.innerHTML = marked.parse(aiText);
+      chatEl.scrollTop = chatEl.scrollHeight;
     }
+    addBubbleActions(aiBubble, aiText);
+    tabLastAiText[activeTab] = aiText;
+    const hist = getHistory();
+    hist.push({ role: 'user', content: text });
+    hist.push({ role: 'assistant', content: aiText });
+    if (hist.length > 40) tabHistories[activeTab] = hist.slice(-40);
+  } catch (err) {
+    removeTyping(chatEl);
+    appendBubble(chatEl, 'ai', '<span style="color:#e53935">&#9888;&#65039; 网络错误：' + escHtml(err.message) + '</span>');
+  } finally {
+    sendBtn.disabled = false;
+    isStreaming = false;
+    userInput.focus();
+  }
+}
 
-    function removeTyping() {
-      const el = document.getElementById('typing-row');
-      if (el) el.remove();
+// ─────────────────────────────────────────────
+// Core: stream from endpoint to specific chat window
+// ─────────────────────────────────────────────
+async function streamToChat(chatEl, endpoint, body) {
+  if (isStreaming) return;
+  isStreaming = true;
+  sendBtn.disabled = true;
+  appendTyping(chatEl);
+  let aiText = '';
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    removeTyping(chatEl);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: 'HTTP ' + resp.status }));
+      appendBubble(chatEl, 'ai', '<span style="color:#e53935">&#9888;&#65039; ' + escHtml(err.error || '请求失败') + '</span>');
+      return;
     }
-
-    function scrollToBottom() {
-      chatWindow.scrollTop = chatWindow.scrollHeight;
+    const aiBubble = appendBubble(chatEl, 'ai', '');
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      aiText += decoder.decode(value, { stream: true });
+      aiBubble.innerHTML = marked.parse(aiText);
+      chatEl.scrollTop = chatEl.scrollHeight;
     }
+    addBubbleActions(aiBubble, aiText);
+    tabLastAiText[activeTab] = aiText;
+    const hist = getHistory();
+    hist.push({ role: 'assistant', content: aiText });
+    if (hist.length > 40) tabHistories[activeTab] = hist.slice(-40);
+  } catch (err) {
+    removeTyping(chatEl);
+    appendBubble(chatEl, 'ai', '<span style="color:#e53935">&#9888;&#65039; ' + escHtml(err.message) + '</span>');
+  } finally {
+    sendBtn.disabled = false;
+    isStreaming = false;
+    userInput.focus();
+  }
+}
 
-    async function sendMessage() {
-      if (isStreaming) return;
-      const text = userInput.value.trim();
-      if (!text) return;
+// ─────────────────────────────────────────────
+// ② 菜谱生成
+// ─────────────────────────────────────────────
+function doGenerate() {
+  const items = ingredientTags.getTags();
+  const diets = getSelectedChips('diet-chips');
+  const extra = userInput.value.trim();
+  if (!items.length && !extra) { alert('请先添加至少一种食材，或在输入框中描述你的需求。'); return; }
+  let prompt = '';
+  if (items.length) prompt += '冰箱里有：' + items.join('、') + '。';
+  if (diets.length) prompt += '饮食目标：' + diets.join('、') + '。';
+  if (extra)        prompt += extra;
+  else              prompt += '请根据以上信息推荐合适的菜肴和详细菜谱。';
+  userInput.value = ''; userInput.style.height = 'auto';
+  const chatEl = document.getElementById('chat-generate');
+  appendBubble(chatEl, 'user', escHtml(prompt));
+  const prevTab = activeTab; activeTab = 'generate';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'generate' });
+  activeTab = prevTab;
+}
 
-      userInput.value = '';
-      userInput.style.height = 'auto';
-      sendBtn.disabled = true;
-      isStreaming = true;
+// ─────────────────────────────────────────────
+// ③ 个性化推荐
+// ─────────────────────────────────────────────
+function doRecommend() {
+  const tastes  = getSelectedChips('taste-chips');
+  const goals   = getSelectedChips('goal-chips');
+  const regions = getSelectedChips('region-chips');
+  const rectype = getSelectedChips('rectype-chips')[0] || '今日三餐';
+  const parts = [];
+  if (tastes.length)  parts.push('口味：' + tastes.join('、'));
+  if (goals.length)   parts.push('健康目标：' + goals.join('、'));
+  if (regions.length) parts.push('地域偏好：' + regions.join('、'));
+  parts.push('推荐类型：' + rectype);
+  const prompt = '我的偏好 — ' + parts.join('；') + '。请为我推荐' + rectype + '。';
+  const chatEl = document.getElementById('chat-recommend');
+  appendBubble(chatEl, 'user', escHtml(prompt));
+  const prev = activeTab; activeTab = 'recommend';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'recommend' });
+  activeTab = prev;
+}
 
-      appendBubble('user', escapeHtml(text));
+// ─────────────────────────────────────────────
+// ④ 食材识别
+// ─────────────────────────────────────────────
+let currentImageData = null;
 
-      const typingRow = appendTyping();
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadImageFile(file);
+});
 
-      let aiText = '';
+const dropArea = document.getElementById('drop-area');
+dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('dragover'); });
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop', e => {
+  e.preventDefault(); dropArea.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImageFile(file);
+});
 
-      try {
-        const response = await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, history }),
-        });
+function loadImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentImageData = ev.target.result;
+    const preview = document.getElementById('image-preview');
+    preview.src = currentImageData; preview.style.display = 'block';
+    document.getElementById('analyze-btn').disabled = false;
+    dropArea.querySelector('p').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
 
-        removeTyping();
+function clearImage() {
+  currentImageData = null;
+  const preview = document.getElementById('image-preview');
+  preview.src = ''; preview.style.display = 'none';
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('file-input').value = '';
+  dropArea.querySelector('p').style.display = 'block';
+}
 
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-          appendBubble('ai', `<span style="color:#e53935">⚠️ ${escapeHtml(err.error || '请求失败')}</span>`);
-          return;
-        }
+async function doAnalyzeImage() {
+  if (!currentImageData) return;
+  const chatEl = document.getElementById('chat-image');
+  appendBubble(chatEl, 'user',
+    '<img src="' + currentImageData + '" style="max-width:200px;max-height:150px;border-radius:8px;display:block;margin-bottom:6px">' +
+    '请识别图中食材并推荐菜谱');
+  const compressed = await compressImage(currentImageData, 800);
+  const prev = activeTab; activeTab = 'image';
+  streamToChat(chatEl, '/api/analyze_image', { image: compressed });
+  activeTab = prev;
+}
 
-        const aiBubble = appendBubble('ai', '');
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+function compressImage(dataUrl, maxWidth) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.src = dataUrl;
+  });
+}
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          aiText += decoder.decode(value, { stream: true });
-          aiBubble.innerHTML = marked.parse(aiText);
-          scrollToBottom();
-        }
+// ─────────────────────────────────────────────
+// ⑤ 做菜助手
+// ─────────────────────────────────────────────
+function doStartCooking() {
+  const dish = document.getElementById('dish-input').value.trim();
+  if (!dish) { alert('请输入想做的菜名。'); return; }
+  const prompt = '我想做' + dish + '，请帮我一步一步指导。先告诉我需要准备哪些食材，然后开始第一步。';
+  const chatEl = document.getElementById('chat-assistant');
+  appendBubble(chatEl, 'user', escHtml(prompt));
+  const prev = activeTab; activeTab = 'assistant';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'assistant' });
+  activeTab = 'assistant';
+}
 
-        history.push({ role: 'user', content: text });
-        history.push({ role: 'assistant', content: aiText });
-        // 保留最近 20 轮对话
-        if (history.length > MAX_HISTORY_MESSAGES) history = history.slice(history.length - MAX_HISTORY_MESSAGES);
+// ─────────────────────────────────────────────
+// ⑥ 搜索菜谱
+// ─────────────────────────────────────────────
+function doSearch() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) { alert('请输入搜索关键词。'); return; }
+  const time = getSelectedChips('time-chips')[0] || '';
+  const diff = getSelectedChips('diff-chips')[0] || '';
+  const cal  = getSelectedChips('cal-chips')[0] || '';
+  const filters = [];
+  if (time && time !== '不限时间') filters.push('烹饪时间' + time);
+  if (diff && diff !== '不限难度') filters.push('难度' + diff);
+  if (cal  && cal  !== '不限热量') filters.push(cal);
+  let prompt = '搜索菜谱：' + query;
+  if (filters.length) prompt += '，筛选条件：' + filters.join('、');
+  prompt += '。请列出匹配的菜肴。';
+  const chatEl = document.getElementById('chat-search');
+  appendBubble(chatEl, 'user', escHtml(prompt));
+  const prev = activeTab; activeTab = 'search';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'search' });
+  activeTab = prev;
+}
 
-      } catch (err) {
-        removeTyping();
-        appendBubble('ai', `<span style="color:#e53935">⚠️ 网络错误：${escapeHtml(err.message)}</span>`);
-      } finally {
-        sendBtn.disabled = false;
-        isStreaming = false;
-        userInput.focus();
-      }
+// ─────────────────────────────────────────────
+// ⑦ 营养分析
+// ─────────────────────────────────────────────
+function doNutrition() {
+  const dish = document.getElementById('nutrition-input').value.trim();
+  if (!dish) { alert('请输入菜肴名称。'); return; }
+  const goals = getSelectedChips('nutri-chips');
+  const goalStr = goals.length ? goals.join('、') : '基础营养分析';
+  const prompt = '请对"' + dish + '"进行' + goalStr + '，详细分析营养成分。';
+  const chatEl = document.getElementById('chat-nutrition');
+  appendBubble(chatEl, 'user', escHtml(prompt));
+  const prev = activeTab; activeTab = 'nutrition';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'nutrition' });
+  activeTab = prev;
+}
+
+// ─────────────────────────────────────────────
+// ⑧ 购物清单
+// ─────────────────────────────────────────────
+function doShopping() {
+  const items = menuTags.getTags();
+  const persons = getSelectedChips('person-chips')[0] || '2人份';
+  if (!items.length) { alert('请先添加要做的菜。'); return; }
+  const prompt = '我计划做以下菜肴（' + persons + '）：' + items.join('、') + '。请生成完整的购物清单。';
+  const chatEl = document.getElementById('chat-shopping');
+  appendBubble(chatEl, 'user', escHtml(prompt));
+  const prev = activeTab; activeTab = 'shopping';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'shopping' });
+  activeTab = prev;
+}
+
+function copyShoppingList() {
+  const text = tabLastAiText['shopping'] || '';
+  if (!text) { alert('请先生成购物清单。'); return; }
+  navigator.clipboard.writeText(text).then(() => alert('购物清单已复制到剪贴板！'));
+}
+
+function printShoppingList() {
+  const content = document.getElementById('chat-shopping').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(
+    '<html><head><title>购物清单</title>' +
+    '<style>body{font-family:sans-serif;padding:20px;max-width:600px;margin:0 auto}' +
+    'h1,h2,h3{color:#d9440b}table{border-collapse:collapse;width:100%}' +
+    'th,td{border:1px solid #ddd;padding:6px 10px}th{background:#fff3e0}' +
+    '.bubble-actions,.avatar{display:none}</style></head>' +
+    '<body>' + content + '</body></html>'
+  );
+  win.document.close();
+  win.print();
+}
+
+// ─────────────────────────────────────────────
+// Voice Input (Web Speech API)
+// ─────────────────────────────────────────────
+const voiceBtn = document.getElementById('voice-btn');
+const voiceStatus = document.getElementById('voice-status');
+const voiceStatusText = document.getElementById('voice-status-text');
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+if (SR) {
+  recognition = new SR();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    voiceBtn.classList.add('recording');
+    voiceStatus.classList.add('listening');
+    voiceStatusText.textContent = '正在聆听…';
+  };
+  recognition.onresult = e => {
+    const t = Array.from(e.results).map(r => r[0].transcript).join('');
+    userInput.value = t;
+    userInput.style.height = 'auto';
+    userInput.style.height = Math.min(userInput.scrollHeight, 110) + 'px';
+  };
+  recognition.onend = () => {
+    voiceBtn.classList.remove('recording');
+    voiceStatus.classList.remove('listening');
+    voiceStatusText.textContent = '';
+    if (userInput.value.trim()) sendMessage();
+  };
+  recognition.onerror = e => {
+    voiceBtn.classList.remove('recording');
+    voiceStatus.classList.remove('listening');
+    voiceStatusText.textContent = '';
+  };
+  voiceBtn.addEventListener('click', () => {
+    if (voiceBtn.classList.contains('recording')) { recognition.stop(); }
+    else { userInput.value = ''; recognition.start(); }
+  });
+} else {
+  voiceBtn.title = '当前浏览器不支持语音输入';
+  voiceBtn.style.opacity = '0.4';
+  voiceBtn.style.cursor = 'default';
+}
+
+// ─────────────────────────────────────────────
+// TTS (Web Speech Synthesis)
+// ─────────────────────────────────────────────
+let currentUtterance = null;
+
+function speakText(btn, text) {
+  if (currentUtterance) {
+    window.speechSynthesis.cancel();
+    currentUtterance = null;
+    btn.textContent = '🔊 朗读';
+    return;
+  }
+  const clean = (text || '').replace(/#+\s/g, '').replace(/\*+/g, '').replace(/【[^】]*】/g, '');
+  if (!clean || !('speechSynthesis' in window)) return;
+  currentUtterance = new SpeechSynthesisUtterance(clean);
+  currentUtterance.lang = 'zh-CN';
+  currentUtterance.rate = 1.0;
+  currentUtterance.onend = () => { currentUtterance = null; btn.textContent = '🔊 朗读'; };
+  btn.textContent = '⏹ 停止';
+  window.speechSynthesis.speak(currentUtterance);
+}
+
+// ─────────────────────────────────────────────
+// Timer
+// ─────────────────────────────────────────────
+let timerInterval = null;
+let timerRemaining = 0;
+let timerRunning = false;
+const timerWidget  = document.getElementById('timer-widget');
+const timerDisplay = document.getElementById('timer-display');
+const timerLabel   = document.getElementById('timer-label');
+const timerPauseBtn = document.getElementById('timer-pause-btn');
+
+function startTimerFromBtn(minutes) { startTimer(minutes); }
+
+function startTimer(minutes) {
+  if (timerInterval) clearInterval(timerInterval);
+  timerRemaining = minutes * 60;
+  timerRunning = true;
+  timerLabel.textContent = minutes + ' 分钟计时';
+  timerWidget.classList.add('visible');
+  timerPauseBtn.textContent = '暂停';
+  updateTimerDisplay();
+  timerInterval = setInterval(() => {
+    if (!timerRunning) return;
+    timerRemaining--;
+    updateTimerDisplay();
+    if (timerRemaining <= 0) {
+      clearInterval(timerInterval); timerInterval = null;
+      timerDisplay.textContent = '完成！';
+      timerLabel.textContent = '时间到 🔔';
+      playBeep();
     }
+  }, 1000);
+}
 
-    function escapeHtml(str) { return escHtml(str); }
-  </script>
+function toggleTimer() {
+  timerRunning = !timerRunning;
+  timerPauseBtn.textContent = timerRunning ? '暂停' : '继续';
+}
+
+function stopTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  timerWidget.classList.remove('visible');
+  timerRunning = false;
+}
+
+function updateTimerDisplay() {
+  const m = String(Math.floor(timerRemaining / 60)).padStart(2, '0');
+  const s = String(timerRemaining % 60).padStart(2, '0');
+  timerDisplay.textContent = m + ':' + s;
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880; osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1.5);
+  } catch (e) {}
+}
+
+// ─────────────────────────────────────────────
+// Utility
+// ─────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
 </body>
 </html>

@@ -1,13 +1,20 @@
 # 美食 AI — 智能食谱助手
 
-一个基于 OpenAI 的美食 AI 应用，用户可输入任意菜名，AI 会返回详细食谱（食材、步骤、烹饪技巧）。
+基于火山引擎 Ark 大模型的全功能美食 AI 应用，提供从菜谱生成到购物清单的一站式烹饪体验。
 
 ## 功能
-- 支持中华料理及世界各地菜肴
-- 流式输出（逐字显示）
-- Markdown 格式食谱，排版清晰
-- 多轮对话，记忆上下文
-- 快捷推荐菜品按钮
+
+| # | 功能 | 说明 |
+|---|------|------|
+| 1 | 🤖 AI 助手 | 通用美食对话，询问任意菜谱、烹饪技巧 |
+| 2 | 🥘 智能菜谱生成 | 输入冰箱食材 + 饮食目标，AI 自动生成菜谱 |
+| 3 | ⭐ 个性化推荐 | 按口味、健康目标、地域偏好推荐今日三餐或一周菜单 |
+| 4 | 📸 食材识别 | 上传冰箱/菜市场照片，AI 识别食材并推荐菜谱 |
+| 5 | 👨‍🍳 做菜助手 | 分步骤烹饪指导，内置定时器，缺食材时给出替代建议 |
+| 6 | 🔍 搜索菜谱 | 模糊搜索 + 时间/热量/难度多维筛选 |
+| 7 | 📊 营养分析 | 自动计算热量、蛋白质、脂肪、碳水，提供饮食建议 |
+| 8 | 🛒 购物清单 | 根据菜单自动汇总食材、合并用量、分类整理，支持打印 |
+| 9 | 🎤 语音交互 | 一键语音输入（Web Speech API），AI 回复支持朗读 |
 
 ## 快速开始
 
@@ -16,10 +23,10 @@
 pip install -r requirements.txt
 ```
 
-### 2. 配置 API Key
+### 2. 配置环境变量
 ```bash
 cp .env.example .env
-# 编辑 .env，填入你的 OPENAI_API_KEY
+# 编辑 .env，填入以下配置
 ```
 
 ### 3. 启动应用
@@ -30,8 +37,23 @@ python app.py
 访问 http://localhost:5000 即可使用。
 
 ## 环境变量
-| 变量名           | 说明                          | 默认值                    |
-|------------------|-------------------------------|---------------------------|
-| OPENAI_API_KEY   | OpenAI API Key（必填）        | —                         |
-| OPENAI_MODEL     | 使用的模型                    | gpt-4o-mini               |
-| OPENAI_BASE_URL  | API 地址（可替换为中转服务）  | https://api.openai.com/v1 |
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `ARK_API_KEY` | 火山引擎 Ark API Key（必填）| — |
+| `ARK_BASE_URL` | API 地址 | `https://ark.cn-beijing.volces.com/api/v3` |
+| `ARK_MODEL` | 文本模型端点 ID | `ep-20260413083552-h7jr9` |
+| `ARK_VISION_MODEL` | 视觉模型端点 ID（食材识别），不填则使用 ARK_MODEL | — |
+| `ARK_ENABLE_WEB_SEARCH` | 是否启用联网搜索 | `false` |
+| `STREAM_PRE_DELAY` | 流式输出前预延迟（秒） | `0.8` |
+| `ARK_DEBUG_EVENTS` | 打印前 N 个流式事件（调试用） | `0` |
+| `FLASK_DEBUG` | Flask 调试模式 | `false` |
+| `FLASK_HOST` | 监听地址 | `127.0.0.1` |
+| `FLASK_PORT` | 监听端口 | `5000` |
+
+## 技术栈
+
+- **后端**：Python / Flask（流式 SSE 输出）
+- **AI**：火山引擎 Ark 大模型（volcenginesdkarkruntime）
+- **前端**：纯 HTML + CSS + JavaScript（无额外依赖）
+- **语音**：浏览器原生 Web Speech API
