@@ -1,0 +1,37 @@
+# 美食 AI — 智能食谱助手
+
+一个基于 OpenAI 的美食 AI 应用，用户可输入任意菜名，AI 会返回详细食谱（食材、步骤、烹饪技巧）。
+
+## 功能
+- 支持中华料理及世界各地菜肴
+- 流式输出（逐字显示）
+- Markdown 格式食谱，排版清晰
+- 多轮对话，记忆上下文
+- 快捷推荐菜品按钮
+
+## 快速开始
+
+### 1. 安装依赖
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 配置 API Key
+```bash
+cp .env.example .env
+# 编辑 .env，填入你的 OPENAI_API_KEY
+```
+
+### 3. 启动应用
+```bash
+python app.py
+```
+
+访问 http://localhost:5000 即可使用。
+
+## 环境变量
+| 变量名           | 说明                          | 默认值                    |
+|------------------|-------------------------------|---------------------------|
+| OPENAI_API_KEY   | OpenAI API Key（必填）        | —                         |
+| OPENAI_MODEL     | 使用的模型                    | gpt-4o-mini               |
+| OPENAI_BASE_URL  | API 地址（可替换为中转服务）  | https://api.openai.com/v1 |
