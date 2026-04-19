@@ -141,11 +141,16 @@ SYSTEM_PROMPTS = {
 
 
 def get_ark_client() -> Ark:
+    base_url = os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3").strip()
+
+    ak = os.getenv("VOLC_ACCESSKEY", "").strip()
+    sk = os.getenv("VOLC_SECRETKEY", "").strip()
+    if ak and sk:
+        return Ark(base_url=base_url, ak=ak, sk=sk)
+
     api_key = os.getenv("ARK_API_KEY", "").strip()
     if not api_key:
-        raise RuntimeError("未配置 ARK_API_KEY（请在 .env 中设置）")
-
-    base_url = os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3").strip()
+        raise RuntimeError("未配置认证信息（请在 .env 中设置 VOLC_ACCESSKEY/VOLC_SECRETKEY 或 ARK_API_KEY）")
     return Ark(base_url=base_url, api_key=api_key)
 
 
@@ -284,10 +289,7 @@ def analyze_image():
     if not image_data.startswith("data:"):
         image_data = f"data:image/jpeg;base64,{image_data}"
 
-    vision_model = os.getenv(
-        "ARK_VISION_MODEL",
-        os.getenv("ARK_MODEL", "ep-20260413083552-h7jr9"),
-    ).strip()
+    vision_model = os.getenv("ARK_VISION_MODEL", "ep-20260419225600-v6nzt").strip()
 
     def generate():
         try:
@@ -297,12 +299,12 @@ def analyze_image():
 
             client = get_ark_client()
 
-            input_msgs = [
+            messages = [
                 {"role": "system", "content": SYSTEM_PROMPTS["image"]},
                 {
                     "role": "user",
                     "content": [
-                        {"type": "input_image", "image_url": image_data},
+                        {"type": "image_url", "image_url": {"url": image_data}},
                         {
                             "type": "text",
                             "text": "请识别图中所有可见的食材，并根据这些食材推荐2-3道菜肴及简单做法。",
@@ -311,19 +313,17 @@ def analyze_image():
                 },
             ]
 
-            resp = client.responses.create(
+            resp = client.chat.completions.create(
                 model=vision_model,
-                input=input_msgs,
+                messages=messages,
                 stream=True,
+                extra_headers={"x-is-encrypted": "true"},
             )
 
             sent_any = False
-            debug_n = int(os.getenv("ARK_DEBUG_EVENTS", "0"))
-            for idx, event in enumerate(resp):
-                if idx < debug_n:
-                    print(f"Vision event[{idx}] type={getattr(event, 'type', None)!r} event={event!r}")
-                text = extract_text_from_event(event)
-                if text:
+            for chunk in resp:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    text = chunk.choices[0].delta.content
                     sent_any = True
                     yield text
 
