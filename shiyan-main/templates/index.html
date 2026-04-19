@@ -1103,9 +1103,8 @@ function doStartCooking() {
   const prompt = '我想做' + dish + '，请帮我一步一步指导。先告诉我需要准备哪些食材，然后开始第一步。';
   const chatEl = document.getElementById('chat-assistant');
   appendBubble(chatEl, 'user', escHtml(prompt));
-  const prev = activeTab; activeTab = 'assistant';
-  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'assistant' });
   activeTab = 'assistant';
+  streamToChat(chatEl, '/chat', { message: prompt, history: getHistory(), mode: 'assistant' });
 }
 
 // ─────────────────────────────────────────────
