@@ -572,6 +572,21 @@
           placeholder="例如：番茄炒鸡蛋、红烧肉…" style="flex:1;" />
       </div>
       <button class="primary-btn" onclick="doStartCooking()">🍳 开始做菜</button>
+      <div class="config-row" style="margin-top:10px;align-items:center;flex-wrap:wrap;gap:6px;">
+        <span class="config-label">⏱ 手动计时</span>
+        <input type="number" id="manual-timer-input" min="1" max="180" value="5"
+          style="width:70px;padding:5px 8px;border:1px solid var(--primary-border);border-radius:8px;font-size:14px;text-align:center;" />
+        <span style="font-size:13px;color:#666;">分钟</span>
+        <button class="secondary-btn" onclick="doManualTimer()" style="padding:5px 14px;">▶ 开始计时</button>
+        <div class="chip-group" style="gap:5px;">
+          <button class="chip" onclick="startTimer(1)">1分</button>
+          <button class="chip" onclick="startTimer(2)">2分</button>
+          <button class="chip" onclick="startTimer(3)">3分</button>
+          <button class="chip" onclick="startTimer(5)">5分</button>
+          <button class="chip" onclick="startTimer(10)">10分</button>
+          <button class="chip" onclick="startTimer(15)">15分</button>
+        </div>
+      </div>
     </div>
     <div class="chat-window" id="chat-assistant">
       <div class="bubble-row ai">
@@ -579,7 +594,7 @@
         <div class="bubble ai">
           👨‍🍳 准备好开始做菜了吗？<br>
           告诉我你想做什么菜，我会一步步带着你完成！<br><br>
-          <strong>💡 小提示：</strong>当提到需要计时的步骤时，点击 <strong>⏱ 定时</strong> 按钮即可快速设定。
+          <strong>💡 小提示：</strong>当 AI 提到计时步骤时会自动出现 <strong>⏱ 定时</strong> 按钮；也可以直接在上方手动设置计时器。
         </div>
       </div>
     </div>
@@ -1263,6 +1278,13 @@ const timerLabel   = document.getElementById('timer-label');
 const timerPauseBtn = document.getElementById('timer-pause-btn');
 
 function startTimerFromBtn(minutes) { startTimer(minutes); }
+
+function doManualTimer() {
+  const input = document.getElementById('manual-timer-input');
+  const minutes = parseInt(input.value, 10);
+  if (!minutes || minutes < 1) { alert('请输入有效的分钟数（至少1分钟）。'); return; }
+  startTimer(minutes);
+}
 
 function startTimer(minutes) {
   if (timerInterval) clearInterval(timerInterval);
